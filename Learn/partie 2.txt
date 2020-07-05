@@ -1,0 +1,36 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+struct buffer {
+	unsigned char tab[512]; 		
+};
+
+typedef struct buffer buffer;
+
+buffer* Lire_secteur (char disque_physique[4],int Num_sect){
+	int n,s;
+	unsigned char * buff= malloc(sizeof(usigned char)*512); 
+	FILE *disk=NULL;
+	char dir [10]="/dev/";
+	strcat(dir,disque_physique);
+  	disk = fopen(disque_physique, "rb");                                 /* Linux  */
+	if(disk == NULL) printf("\n Erreur le disque physique1 n'est pas ouvert\n" );	else{ s=fseek(disk,Num_sect, SEEK_SET); /*seek par rapport au début du fichier : 0 */
+   			if(s!=0) printf("\n Erreur de fseek : s= %d",s); 
+    		else{ n=fread(*buffer,512, 1, disk);  
+        		if(n<=0) printf("\n Erreur de fread = %d ",n);           
+       			else printf("\n Lecture du secteur %d; Nombre d’éléments lus = %d\n",Num_sect,n);			} 
+	}
+	return (buffer);
+   	fclose(disk);
+}
+
+void Afficher_secteur (char disque_physique[4],int Num_sect){
+	buffer*  buff= Lire_secteur ( disque_physique, Num_sect);
+	int i,j;
+	for(i=0;i<32;i++){
+		for(j=0;j<16;j++){
+			printf("%02x",buff->tab[i*j];
+		}
+	printf("\n");
+	}
+}

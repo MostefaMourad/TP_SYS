@@ -1,0 +1,51 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct liste{
+	char mat [26][3];
+};
+typedef struct liste liste;
+
+void Liste_Disques(liste * liste_disque1,liste * liste_disque2){
+
+char  dir1[10] = "/dev/sd";
+int i=97;
+FILE* dir=NULL;
+char  dir2 [10];
+strcpy(dir2,dir1);
+dir2 [7]=i;
+int j=0;
+while ((i<=122)&&((dir=fopen(dir2,"rb"))!=NULL)){
+
+	printf("sd%c\n",i);
+	strcpy(liste_disque1->mat[j],"sd");
+	liste_disque1->mat[j][2]=i;
+	j++;	
+	i++;
+	strcpy(dir2,dir1);
+	dir2[7]=i;
+}
+strcpy(dir1,"/dev/hd");
+dir=NULL;
+i=97;
+j=0;
+strcpy(dir2,dir1);
+dir2 [7]=i;
+while ((i<=122)&&((dir=fopen(dir2,"rb"))!=NULL)){
+
+	printf("hd%c\n",i);
+	strcpy(liste_disque2->mat[j],"sd");
+	liste_disque2->mat[j][2]=i;
+	j++;		
+	i++;
+	strcpy(dir2,dir1);
+	dir2[7]=i;
+}
+}
+
+void main(){
+char a1 [26][3];
+Liste_Disques(a1);
+
+}
