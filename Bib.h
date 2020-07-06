@@ -5,10 +5,10 @@
 #include <string.h>
 
 #define NOMBRE_DE_DISQUES 10
+#define NOMBRE_DE_PARTITIONS 512
 #define TAILLE_DE_STRING_MAX 256
 
 char* disques[NOMBRE_DE_DISQUES]; // variable globale pour sauvgarder les disques
-FILE *disque;
 int disquesNum = 0;
 
 FILE *fichier;
@@ -20,6 +20,7 @@ unsigned int NombreTablesFAT;
 unsigned int tailleFat;
 unsigned int clusterRacine;
 unsigned int racineAdr;
+unsigned int taillePartition;
 //------------------------------------------------------
 
 struct tfichier{
@@ -30,8 +31,14 @@ struct tfichier{
     char type;
 };
 
+struct buffer {
+	unsigned char tab[512]; 		
+};
+typedef struct buffer buffer;
+
 /************************** Afficher la liste des disques physiques connectés.************************/
 int Liste_Disques(){
+    FILE *disque=NULL;
     int i = 0;
     char* alph = "abcdefghijklmnopqrstuvwxyz";
     char chemin[1035];
@@ -53,17 +60,16 @@ int Liste_Disques(){
     printf("%d disque(s) est (sont) connecte(s)\n",i);
 }
 
+
 /************** Lire le secteur ayant le numéro Num_sect du disque physique disque_physique ********/
 
-char* Lire_secteur (int disque_physique,int Num_sect){
+char* Lire_secteur (FILE *disque,int Num_sect){
     int n,s;
     long int sectLBA = 512*Num_sect;
     unsigned char* buffer;
     buffer = malloc(sizeof(char)*512);
     /* bloc = 512 octets*/
-    FILE *disque=NULL;
-    disque = fopen(disques[disque_physique], "rb");
-    if(disque == NULL) printf("\nErreur le disque physique %d n'est pas ouvert\n",disque_physique );
+    if(disque == NULL) printf("\nErreur le disque physique n'est pas ouvert\n" );
     else{ s=fseek(disque, sectLBA, SEEK_SET); /*seek par rapport au début du fichier : 0 */
         if(s!=0) {
             printf("\nErreur de fseek : s= %d",s);
@@ -82,13 +88,12 @@ char* Lire_secteur (int disque_physique,int Num_sect){
     fclose(disque);
     return buffer;
 }
-
 /************** lire le secteur Num_sect et affiche son contenu, en hexadécimal ********/
 
-void Afficher_secteur (int disque_physique, int Num_sect){
+void Afficher_secteur (FILE *disque, int Num_sect){
     unsigned char* buffer;int i;
     int j = 0;
-    buffer = Lire_secteur(disque_physique,Num_sect);
+    buffer = Lire_secteur(disque,Num_sect);
     if(buffer!=NULL){
           printf("Adresse\tContenu(octet de 1 à 16)");
     for (i = 0; i < 512; i++)
@@ -113,12 +118,10 @@ void Afficher_Fdel(int disque_physique,int partition){
 
 // -------------------- Des Fonctions supplémentaire mais necessaires------------------------------//
 
-/**************** Recuperer les Parametre d'un disque phyisique **************************************/
+/**************** Recuperer les Parametre d'une partition    **************************************/
 
-void Recuperer_Parametre_Disque(int num_disque){
-
-    disque = fopen(disques[num_disque], "rb");
-    if(disque == NULL) printf("\nErreur le disque physique %d n'est pas ouvert\n",num_disque );
+void Recuperer_Parametre_Partition(FILE *disque){
+    if(disque == NULL) printf("\nErreur le disque physique n'est pas ouvert\n");
     else{  
     unsigned char buffer[512];
     fread(buffer, 1, 512, disque);
@@ -128,10 +131,16 @@ void Recuperer_Parametre_Disque(int num_disque){
     NombreTablesFAT = buffer[16];
     tailleFat = buffer[36] | buffer[37]<<8 | buffer[38]<<16 | buffer[39]<<24;
     clusterRacine = buffer[44] | buffer[45]<<8 | buffer[46]<<16 | buffer[47]<<24;
+    taillePartition = buffer[32] | buffer[33]<<8 | buffer[34]<<16 | buffer[35]<<24;
     racineAdr = (secteursReserves + NombreTablesFAT * tailleFat) * tailleSecteur;
-    printf("--------------------------------------------------\n");
-    printf("Taille du scteur :%d\nsecteur Par Cluster:%d\n secteurs Reserves:%d\n",tailleSecteur,secteurParCluster,secteursReserves);
-    printf("Nombre de tables FAT:%d\ntaille Fat:%d\ncluster Racine:%u\nracine Adresses:%u\n",NombreTablesFAT,tailleFat,clusterRacine,racineAdr);
-    printf("--------------------------------------------------\n");
+    printf("---------------------------------------------------------------------\n");
+    printf("Le nombre d'octets par secteur                  :%d\n",tailleSecteur);
+    printf("Le nombre de secteurs par cluster               :%d\n",secteurParCluster);
+    printf("La taille de la Reserved Region                 :%d\n",secteursReserves);
+    printf("La taille de la partition                       :%d\n",taillePartition);
+    printf("Le numéro du 1er cluster du répertoire racine   :%d\n",clusterRacine);
+    printf("Le nombre de FAT                                :%d\n",tailleFat);
+    printf("L'Adresse(Racine) de début de la Data Region    :0x%x\n",racineAdr);
+    printf("---------------------------------------------------------------------\n");
     }
 }
