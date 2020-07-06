@@ -5,9 +5,7 @@
 int main(int argc, char const *argv[])
 {
     Liste_Disques();
-    FILE *disk=NULL;
-    disk = fopen("/dev/sdb1", "rb");
-    Recuperer_Parametre_Partition(disk);
+    Afficher_Fdel(1,1);
     return 0;
 }
 
