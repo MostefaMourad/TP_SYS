@@ -317,7 +317,13 @@ int est_vide(char *buffer){
 /********************************** Trouver le Prochin cluster a lire ******************************/
 
 int cluster_suivant(FILE *partition,int cluster_courant){
-
+    int clus = -1 ;
+    clus = cluster_suivant_FAT(partition,cluster_actuel);
+    if(clus==-1){
+        clus = clusters[indice_courant_cluster+1];
+        indice_courant_cluster++;
+    }
+    return clus;
 }
 
 /********************************** Trouver le Prochain cluster dans la Table Fat ******************/
