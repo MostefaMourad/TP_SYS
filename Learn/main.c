@@ -24,7 +24,6 @@ unsigned int rootAdr;
 
 struct tfile{
     char file_name[256];
-    char long_file_name[256];
     int size;
     int first_cluster;
     char type;
@@ -229,7 +228,7 @@ void Lire_secteur (int disque_physique,int Num_sect){
 
 int main() {
     Liste_Disques();
-    disk = fopen("/dev/sdc1", "rb");
+    disk = fopen("/dev/sdb1", "rb");
     struct tfile fs;
     if (disk == NULL){
         printf("Error while opening file!\n");

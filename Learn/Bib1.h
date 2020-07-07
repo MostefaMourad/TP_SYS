@@ -7,7 +7,6 @@
 #define NOMBRE_DE_DISQUES 10
 #define NOMBRE_DE_PARTITIONS 512
 #define TAILLE_DE_STRING_MAX 256
-#define NOMBRE_MAX_FICHIER 26800000
 
 char* disques[NOMBRE_DE_DISQUES]; // variable globale pour sauvgarder les disques
 int disquesNum = 0;
@@ -17,17 +16,13 @@ int Liste_Disques();
 char* Lire_secteur (FILE *disque,int offset);
 void Afficher_secteur (FILE *disque, int Num_sect);
 void Afficher_Fdel(int disque_physique,int partition);
-void Rechercher_Fichiers_Partition(FILE *partition);
-void Afficher_fichiers_Reps(char* buffer);
-void get_Fichier_Infos(char* buffer);
-struct tfichier *Allouer_F ();
-void Afficher_Clusters();
-void Parcourir_Cluster(int cluster,FILE *partition);
-int est_vide(char *buffer);
-int cluster_suivant(FILE *partition,int cluster_courant);
-int cluster_suivant_FAT(FILE *partition,int cluster_courant);
+int readFromFile(unsigned char *buffer, unsigned int *pcluster, int *poffset);
+void myGetfichierInfo(char* buffer,int *pcluster, int *poffset, int count, int LFN);
+void search_files_in_partition(int cluster);
+void search_files_in_directory(char* directoryName);
 //******************************************************************//
-FILE *fichier;
+
+FILE *partit;
 //------------------------------------------------------
 unsigned int tailleSecteur;
 unsigned int secteurParCluster;
@@ -43,18 +38,15 @@ unsigned int PartitionAdr;
 
 typedef struct tfichier{
     char nom_fichier[256];
+    char longue_nom_fichier[256];
     int taille;
     int premier_cluster;
     char rep_pere[256];
     char type;
 }tfichier;
 
-int clusters[NOMBRE_MAX_FICHIER];
-int num_cluster;
-char *cluster_parent;
-char *cluster_courant;
-int cluster_actuel;
-int stop;
+struct tfichier *fichier;
+
 /************************** Afficher la liste des disques physiques connectés.************************/
 int Liste_Disques(){
     FILE *disque=NULL;
@@ -77,10 +69,6 @@ int Liste_Disques(){
     }
     disquesNum = i;
     printf("%d disque(s) est (sont) connecte(s)\n",i);
-    num_cluster=-1;
-    for(int i=0;i<26800000;i++){
-        clusters[i]=-1;
-    }
 }
 
 
@@ -108,6 +96,7 @@ char* Lire_secteur (FILE *disque,int offset){
             }
         }
     }
+    fclose(disque);
     return buffer;
 }
 /************** lire le secteur Num_sect et affiche son contenu, en hexadécimal ********/
@@ -154,8 +143,11 @@ void Afficher_Fdel(int disque_physique,int partition){
     }
     else{
         Recuperer_Parametre_Partition(part,disque_physique,partition);
-        Rechercher_Fichiers_Partition(part);
-        Afficher_Clusters();
+        partit=part;
+        if (partit == NULL){
+            printf("Error while opening file!\n");
+        }
+        search_files_in_directory("/");
     }
     fclose(part);
     }
@@ -179,11 +171,6 @@ void Recuperer_Parametre_Partition(FILE *disque,int disque_physique,int partitio
     tailleFat = buffer[36] | buffer[37]<<8 | buffer[38]<<16 | buffer[39]<<24;
     clusterRacine = buffer[44] | buffer[45]<<8 | buffer[46]<<16 | buffer[47]<<24;
     taillePartition = buffer[32] | buffer[33]<<8 | buffer[34]<<16 | buffer[35]<<24;
-    clusters[num_cluster+1] = clusterRacine;
-    num_cluster+=1;
-    cluster_parent="N'existe Pas";
-    cluster_courant="/";
-    cluster_actuel=clusterRacine;
     FILE *dp;
     dp = fopen(disques[disque_physique], "rb"); // ouvrir le disque
     if(dp == NULL) {
@@ -214,146 +201,88 @@ void Recuperer_Parametre_Partition(FILE *disque,int disque_physique,int partitio
     }
 }
 
-/**************** Recuperer les fichiers/repertoires dans une partition   ***************************/
-
-void Rechercher_Fichiers_Partition(FILE *partition){
-    Parcourir_Cluster(cluster_actuel,partition);
-    cluster_actuel =  cluster_suivant(partition,cluster_actuel);
-    printf("cluster_actuel :%d \n",cluster_actuel);
-}
-
-/**************** Afficher les fichiers repertoires d'un Secteur    ********************************/
-
-void Afficher_fichiers_Reps(char* buffer){
-    int i,j;
-    unsigned char* buff;
-    for(i=0;i<16;i++){
-        buff = malloc(sizeof(char)*32);
-        for(j=0;j<32;j++){
-           buff[j] = buffer[j+i*32];
-        }
-        if(est_vide(buff)==-1){
-          stop=-1;
-          break;
-        }
-        else{
-          get_Fichier_Infos(buff);
-        }
-        buff=NULL;
-    }
-}
-
-/****************** Recuperer les propriétés d'un fichiers    ***************************************/
-
-void get_Fichier_Infos(char* buffer){
-    tfichier *f;
-    f=Allouer_F();
-    f->taille = buffer[28] | buffer[29]<<8 | buffer[30]<<16 | buffer[31]<<24;
-    f->premier_cluster = buffer[26] | buffer[27] <<8 | buffer[20]<<16 | buffer[21]<<24;
-    f->type = buffer[11];
-    f->nom_fichier[11] = 0x00;
-    int i = 10;
-    while(buffer[i] == 0x20) f->nom_fichier[i--] = 0x00;
-    while(i >= 0) {f->nom_fichier[i] = buffer[i]; i--;}
-    if((strcmp(f->nom_fichier,"")!=0) && (f->taille>=0) && (f->premier_cluster>=0)){
-    printf("----------------- Propriétés du Fichier --------------------------\n");
-    printf("Le Nom du Fichier                  :%s\n",f->nom_fichier);
-    printf("La Taille du Fichier               :%d\n",f->taille);
-    printf("Le Numero du Premier cluster       :%d\n",f->premier_cluster);
-    printf("Répetoire Parent                   :%s\n",cluster_parent);
-    char *type;
-    if(f->type==0x10){
-       type = "Répértoire";
-       clusters[num_cluster+1]=f->premier_cluster;
-       num_cluster+=1;
-    }
-    else{
-       type = "Fichier";
-    }
-    printf("Type                               :%s\n",type);
-    printf("-------------------------------------------------------------------\n");
-    }
-}
-
-/****************** Allouer une structure de type tfichier    ***************************************/
-
-struct tfichier *Allouer_F ()
-{ return ((struct tfichier *) malloc( sizeof(struct tfichier))); }
-
-/****************** Afficher le tableau des clusters disponible a lecture ***************************/
-
-void Afficher_Clusters(){
-    for(int i=0;i<=num_cluster;i++){
-        printf("Le cluster N=°%d est disponible\n",clusters[i]);
-    }
-}
-
-/********************************* Parcourir un cluster *********************************************/
-
-void Parcourir_Cluster(int cluster,FILE *partition){
-    unsigned int address = racineAdr + (cluster - clusterRacine) * secteurParCluster * tailleSecteur;
-    unsigned char* buffer;
-    stop=1;
-    for(int i=0;i<8 && stop!=-1;i++){
-        buffer = NULL;
-        buffer = Lire_secteur(partition,address+i*512);
-        Afficher_fichiers_Reps(buffer);
-    }
-}
-
-/********************************* vérifier si le secteur est vide *********************************/
-
-int est_vide(char *buffer){
-    for(int j=0;j<32;j++){
-        if(buffer[j]!=0x00){
-            return 1;
-        }
-    }
-    return -1;
-}
-
-/********************************** Trouver le Prochin cluster a lire ******************************/
-
-int cluster_suivant(FILE *partition,int cluster_courant){
-    int clus = -1 ;
-    clus = cluster_suivant_FAT(partition,cluster_actuel);
-    return clus;
-}
-
-/********************************** Trouver le Prochain cluster dans la Table Fat ******************/
-
-int cluster_suivant_FAT(FILE *partition,int cluster_act){
-    char buffer[4];
-    int s,n;
+int readFromFile(unsigned char *buffer, unsigned int *pcluster, int *poffset){
     unsigned int fatAdr  = secteursReserves * tailleSecteur;
-    if(partition == NULL) printf("\nErreur la Partition n'est pas montée\n" );
-    else{ s=fseek(partition,fatAdr+(cluster_act), SEEK_SET); /*seek par rapport au début du fichier : 0 */
-        if(s!=0) {
-            printf("\nErreur de fseek : s= %d",s);
-            memset(buffer,'\0',4);
+    if (*poffset == tailleSecteur * secteurParCluster){
+        fseek(partit, fatAdr + (*pcluster) * 4, SEEK_SET);
+        fread(pcluster,1, 4, partit);
+        if (*pcluster >= 0x0FFFFFF8 && *pcluster <= 0x0FFFFFFF) return 0;
+        fseek(partit, racineAdr + (*pcluster - clusterRacine) * secteurParCluster * tailleSecteur, SEEK_SET);
+        (*poffset) = 0;
+    }
+    fread(buffer, 1, 32, partit);
+    *poffset = *poffset + 32;
+    return 1;
+}
+
+void myGetfichierInfo(char* buffer,int *pcluster, int *poffset, int count, int LFN){
+    if(LFN){
+        while(count > 0){
+            fichier->longue_nom_fichier[(count - 1)*13 + 0] = buffer[1];
+            fichier->longue_nom_fichier[(count - 1)*13 + 1] = buffer[3];
+            fichier->longue_nom_fichier[(count - 1)*13 + 2] = buffer[5];
+            fichier->longue_nom_fichier[(count - 1)*13 + 3] = buffer[7];
+            fichier->longue_nom_fichier[(count - 1)*13 + 4] = buffer[9];
+            fichier->longue_nom_fichier[(count - 1)*13 + 5] = buffer[14];
+            fichier->longue_nom_fichier[(count - 1)*13 + 6] = buffer[16];
+            fichier->longue_nom_fichier[(count - 1)*13 + 7] = buffer[18];
+            fichier->longue_nom_fichier[(count - 1)*13 + 8] = buffer[20];
+            fichier->longue_nom_fichier[(count - 1)*13 + 9] = buffer[22];
+            fichier->longue_nom_fichier[(count - 1)*13 + 10] = buffer[24];
+            fichier->longue_nom_fichier[(count - 1)*13 + 11] = buffer[28];
+            fichier->longue_nom_fichier[(count - 1)*13 + 12] = buffer[30];
+            count--;
         }
-        else{ n=fread(buffer,4, 1, partition);
-            if(n<=0){
-                 printf("\nErreur de fread = %d ",n);
-                 memset(buffer,'\0',4);
-            }
-            else {
-                unsigned int a = buffer[0] | buffer[1]<<8 | buffer[2]<<16 | buffer[3]<<24;
-                if ( (a >= 0x0FFFFFF8) || (a == 0x00000000) || (a == 0x0FFFFFF7))
-                {
-                    return -1;
-                }
-                else
-                {
-                   char little_india[4];
-                   for(int i=0;i<4;i++){
-                       little_india[i] = buffer[3-i];
-                   }
-                   unsigned int b = little_india[0] | little_india[1]<<8 | little_india[2]<<16 | little_india[3]<<24;
-                   b = (int)b;
-                }    
-            }
+
+        if(!readFromFile(buffer, pcluster, poffset)){
+            printf("Error in getfichierInfo!");
+            exit(1);
         }
     }
-    return 0;
+    fichier->taille = buffer[28] | buffer[29]<<8 | buffer[30]<<16 | buffer[31]<<24;
+    fichier->premier_cluster = buffer[26] | buffer[27] <<8 | buffer[20]<<16 | buffer[21]<<24;
+    fichier->nom_fichier[11] = 0x00;
+    int i = 10;
+    while(buffer[i] == 0x20) fichier->nom_fichier[i--] = 0x00;
+    while(i >= 0) {fichier->nom_fichier[i] = buffer[i]; i--;}
+}
+
+
+void search_files_in_partition(int cluster){
+    unsigned int address = racineAdr + (cluster - clusterRacine) * secteurParCluster * tailleSecteur;
+    unsigned char buffer[32];
+    unsigned int offset = 0;
+    fseek(partit, address, SEEK_SET);
+    while(readFromFile(buffer,&cluster,&offset)){
+        if(buffer[0] == 0x00) break;
+        if(buffer[0] == 0xE5){
+            printf("Entree Supprimee\n");
+        }
+//            fseek(partit, -32, SEEK_CUR); offset -= 32;
+        int count = 0; int LFN = 0;
+        if(buffer[11] == 0X0F) {LFN = 1; count = buffer[0] & 0X0F;}
+        myGetfichierInfo(buffer,&cluster, &offset, count, LFN);
+        printf("Short Name: %s\n",fichier->nom_fichier);
+        if(LFN) printf("Long Name: %s\n",fichier->longue_nom_fichier);
+        printf("taille in Bytes: %d\n",fichier->taille);
+        printf("Number of the first Cluster: %d\n\n",fichier->premier_cluster);
+    };
+}
+
+void search_files_in_directory(char* directoryName){
+    int cluster = 2;
+    unsigned int address = racineAdr + (cluster - clusterRacine) * secteurParCluster * tailleSecteur;
+    unsigned char buffer[32];
+    unsigned int offset = 0;
+    fseek(partit, address, SEEK_SET);
+    while(readFromFile(buffer,&cluster,&offset)){
+        if(buffer[0] == 0x00) break;
+        int count = 0; int LFN = 0;
+        if(buffer[11] == 0X0F) {LFN = 1; count = buffer[0] & 0X0F;}
+        myGetfichierInfo(buffer, &cluster, &offset, count, LFN);
+        if(strcmp(fichier->longue_nom_fichier, directoryName) == 0) {
+            search_files_in_partition(fichier->premier_cluster);
+            return;
+        };
+    };
 }
