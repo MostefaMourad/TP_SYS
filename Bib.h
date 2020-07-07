@@ -26,6 +26,7 @@ void Parcourir_Cluster(int cluster,FILE *partition);
 int est_vide(char *buffer);
 int cluster_suivant(FILE *partition,int cluster_courant);
 int cluster_suivant_FAT(FILE *partition,int cluster_courant);
+int existe(int cluster);
 //******************************************************************//
 FILE *fichier;
 //------------------------------------------------------
@@ -49,7 +50,15 @@ typedef struct tfichier{
     char type;
 }tfichier;
 
-int clusters[NOMBRE_MAX_FICHIER];
+typedef struct Tcluster
+{
+    int cluster;
+    char *rep_parent;
+    char *rep_cour;
+}Tcluster;
+
+Tcluster Clusters[NOMBRE_MAX_FICHIER];
+
 int num_cluster;
 int indice_courant_cluster;
 char *cluster_parent;
@@ -80,7 +89,7 @@ int Liste_Disques(){
     printf("%d disque(s) est (sont) connecte(s)\n",i);
     num_cluster=-1;
     for(int i=0;i<26800000;i++){
-        clusters[i]=-1;
+        (Clusters[i]).cluster = -1;
     }
 }
 
@@ -156,7 +165,7 @@ void Afficher_Fdel(int disque_physique,int partition){
     else{
         Recuperer_Parametre_Partition(part,disque_physique,partition);
         Rechercher_Fichiers_Partition(part);
-        Afficher_Clusters();
+        Afficher_Clusters(); 
     }
     fclose(part);
     }
@@ -180,7 +189,9 @@ void Recuperer_Parametre_Partition(FILE *disque,int disque_physique,int partitio
     tailleFat = buffer[36] | buffer[37]<<8 | buffer[38]<<16 | buffer[39]<<24;
     clusterRacine = buffer[44] | buffer[45]<<8 | buffer[46]<<16 | buffer[47]<<24;
     taillePartition = buffer[32] | buffer[33]<<8 | buffer[34]<<16 | buffer[35]<<24;
-    clusters[num_cluster+1] = clusterRacine;
+    (Clusters[num_cluster+1]).cluster = clusterRacine;
+    (Clusters[num_cluster+1]).rep_cour="/";
+    (Clusters[num_cluster+1]).rep_parent="N'existe Pas";
     num_cluster+=1;
     indice_courant_cluster=0;
     cluster_parent="N'existe Pas";
@@ -219,9 +230,14 @@ void Recuperer_Parametre_Partition(FILE *disque,int disque_physique,int partitio
 /**************** Recuperer les fichiers/repertoires dans une partition   ***************************/
 
 void Rechercher_Fichiers_Partition(FILE *partition){
-    Parcourir_Cluster(cluster_actuel,partition);
-    cluster_actuel =  cluster_suivant(partition,cluster_actuel);
-    printf("cluster_actuel :%d \n",cluster_actuel);
+     int clust = cluster_actuel;
+     while (cluster_actuel!=-1)
+     {
+         Parcourir_Cluster(cluster_actuel,partition);
+         clust = cluster_suivant(partition,cluster_actuel);
+         cluster_actuel=clust;
+     }
+     
 }
 
 /**************** Afficher les fichiers repertoires d'un Secteur    ********************************/
@@ -266,8 +282,12 @@ void get_Fichier_Infos(char* buffer){
     char *type;
     if(f->type==0x10){
        type = "Répértoire";
-       clusters[num_cluster+1]=f->premier_cluster;
-       num_cluster+=1;
+       if(existe(f->premier_cluster)==0){
+            (Clusters[num_cluster+1]).cluster = f->premier_cluster;
+            (Clusters[num_cluster+1]).rep_cour = f->nom_fichier;
+            (Clusters[num_cluster+1]).rep_parent = cluster_courant;
+            num_cluster+=1; 
+       }
     }
     else{
        type = "Fichier";
@@ -286,7 +306,9 @@ struct tfichier *Allouer_F ()
 
 void Afficher_Clusters(){
     for(int i=0;i<=num_cluster;i++){
-        printf("Le cluster N=°%d est disponible\n",clusters[i]);
+        char *chaine;
+        chaine = (Clusters[i]).rep_parent ;
+        printf("Le cluster N=°%d est disponible\tRepertoire Parent :%s\n",(Clusters[i]).cluster,chaine);
     }
 }
 
@@ -316,17 +338,24 @@ int est_vide(char *buffer){
 
 /********************************** Trouver le Prochin cluster a lire ******************************/
 
-int cluster_suivant(FILE *partition,int cluster_courant){
+int cluster_suivant(FILE *partition,int cls){
     int clus = -1 ;
-    clus = cluster_suivant_FAT(partition,cluster_actuel);
+    clus = cluster_suivant_FAT(partition,cls);
     if(clus==-1){
-        clus = clusters[indice_courant_cluster+1];
+        clus = (Clusters[indice_courant_cluster+1]).cluster;
+        if(clus!=-1){
+            char *chaine,*chaine2;
+            chaine = (Clusters[indice_courant_cluster+1]).rep_parent ;
+            chaine2 = (Clusters[indice_courant_cluster+1]).rep_cour;
+            cluster_parent = chaine;
+            cluster_courant = chaine2;
+        }
         indice_courant_cluster++;
     }
     return clus;
 }
 
-/********************************** Trouver le Prochain cluster dans la Table Fat ******************/
+/*********************************** Trouver le Prochain cluster dans la Table Fat ******************/
 
 int cluster_suivant_FAT(FILE *partition,int cluster_act){
     char buffer[4];
@@ -362,4 +391,17 @@ int cluster_suivant_FAT(FILE *partition,int cluster_act){
         }
     }
     return -1;
+}
+
+/****************************** Tester si le cluster existe déja dans le tableau  ******************/
+
+int existe(int cluster){
+    for(int i=0;i<=num_cluster;i++){
+        if((Clusters[i]).cluster==cluster){
+            return 1;
+            printf("le cluster :%d\n",cluster);
+            Afficher_Clusters();
+        }
+    }
+    return 0;
 }

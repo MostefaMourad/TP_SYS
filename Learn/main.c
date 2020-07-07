@@ -24,26 +24,28 @@ unsigned int rootAdr;
 
 struct tfile{
     char file_name[256];
+    char long_file_name[256];
     int size;
     int first_cluster;
     char type;
 };
 
-    void getParameters(){
-        unsigned char buffer[512];
-        fread(buffer, 1, 512, disk);
-        sectorSize = buffer[11] | buffer[12]<<8;
-        sectorPerCluster = buffer[13];
-        reservedSectors = buffer[14] | buffer[15]<<8;
-        fatTablesNumber = buffer[16];
-        fatSize = buffer[36] | buffer[37]<<8 | buffer[38]<<16 | buffer[39]<<24;
-        rootCluster = buffer[44] | buffer[45]<<8 | buffer[46]<<16 | buffer[47]<<24;
-        rootAdr = (reservedSectors + fatTablesNumber * fatSize) * sectorSize;
-        printf("--------------------------------------------------\n");
-        printf("SECTOR SIZE:%d\nSECTORPERCLUSTER:%d\nRESERVEDSECTORS:%d\n",sectorSize,sectorPerCluster,reservedSectors);
-        printf("FATNUMBER:%d\nFATSIZE:%d\nROOTCLUSTER:%u\nROOTADR:%u\n",fatTablesNumber,fatSize,rootCluster,rootAdr);
-        printf("--------------------------------------------------\n");
-    }
+
+void getParameters(){
+    unsigned char buffer[512];
+    fread(buffer, 1, 512, disk);
+    sectorSize = buffer[11] | buffer[12]<<8;
+    sectorPerCluster = buffer[13];
+    reservedSectors = buffer[14] | buffer[15]<<8;
+    fatTablesNumber = buffer[16];
+    fatSize = buffer[36] | buffer[37]<<8 | buffer[38]<<16 | buffer[39]<<24;
+    rootCluster = buffer[44] | buffer[45]<<8 | buffer[46]<<16 | buffer[47]<<24;
+    rootAdr = (reservedSectors + fatTablesNumber * fatSize) * sectorSize;
+    printf("--------------------------------------------------\n");
+    printf("SECTOR SIZE:%d\nSECTORPERCLUSTER:%d\nRESERVEDSECTORS:%d\n",sectorSize,sectorPerCluster,reservedSectors);
+    printf("FATNUMBER:%d\nFATSIZE:%d\nROOTCLUSTER:%u\nROOTADR:%u\n",fatTablesNumber,fatSize,rootCluster,rootAdr);
+    printf("--------------------------------------------------\n");
+}
 
 int readFromFile(unsigned char *buffer, unsigned int *pcluster, int *poffset){
     unsigned int fatAdr  = reservedSectors * sectorSize;
