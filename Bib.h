@@ -51,6 +51,7 @@ typedef struct tfichier{
 
 int clusters[NOMBRE_MAX_FICHIER];
 int num_cluster;
+int indice_courant_cluster;
 char *cluster_parent;
 char *cluster_courant;
 int cluster_actuel;
@@ -181,6 +182,7 @@ void Recuperer_Parametre_Partition(FILE *disque,int disque_physique,int partitio
     taillePartition = buffer[32] | buffer[33]<<8 | buffer[34]<<16 | buffer[35]<<24;
     clusters[num_cluster+1] = clusterRacine;
     num_cluster+=1;
+    indice_courant_cluster=0;
     cluster_parent="N'existe Pas";
     cluster_courant="/";
     cluster_actuel=clusterRacine;
@@ -315,9 +317,7 @@ int est_vide(char *buffer){
 /********************************** Trouver le Prochin cluster a lire ******************************/
 
 int cluster_suivant(FILE *partition,int cluster_courant){
-    int clus = -1 ;
-    clus = cluster_suivant_FAT(partition,cluster_actuel);
-    return clus;
+
 }
 
 /********************************** Trouver le Prochain cluster dans la Table Fat ******************/
@@ -350,10 +350,10 @@ int cluster_suivant_FAT(FILE *partition,int cluster_act){
                        little_india[i] = buffer[3-i];
                    }
                    unsigned int b = little_india[0] | little_india[1]<<8 | little_india[2]<<16 | little_india[3]<<24;
-                   b = (int)b;
+                   return (int)b;
                 }    
             }
         }
     }
-    return 0;
+    return -1;
 }
