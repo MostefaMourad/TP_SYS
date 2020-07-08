@@ -125,10 +125,10 @@ char* Lire_secteur (FILE *disque,int offset){
 void Afficher_secteur (FILE *disque, int offset){
     unsigned char* buffer;int i;
     int j = 0;
-    buffer = Lire_secteur(disque,offset);
+    buffer = Lire_secteur(disque,offset); //lecture de secteur
     if(buffer!=NULL){
           printf("Adresse\tContenu(octet de 1 à 16)");
-    for (i = 0; i < 512; i++)
+    for (i = 0; i < 512; i++) //affichage de secteur
     {
         if (i > 0) printf(" ");
         if (j % 16 == 0) {
@@ -159,13 +159,12 @@ void Afficher_Fdel(int disque_physique,int partition){
     strcat(chemin,disques[disque_physique]);
     strcat(chemin,snum);
     part = fopen(chemin, "rb"); // ouvrir la partition  
-    if(part == NULL) {
-        printf("\n Erreur la partition %d n'est pas montée \n",partition );
+    if(part == NULL) { //tester si la partition est monée
+        printf("\n Erreur la partition %d n'est pas montée \n",partition ); 
     }
-    else{
-        Recuperer_Parametre_Partition(part,disque_physique,partition);
-        Rechercher_Fichiers_Partition(part);
-        Afficher_Clusters(); 
+    else{ 
+        Recuperer_Parametre_Partition(part,disque_physique,partition); // pour recuperer les parametre de la partition
+        Rechercher_Fichiers_Partition(part); // rechercher des fichiers dans la partition
     }
     fclose(part);
     }
@@ -207,9 +206,9 @@ void Recuperer_Parametre_Partition(FILE *disque,int disque_physique,int partitio
     else{
         fread(buffer, 1, 512, dp);
         int i = 454 + (partition-1)*16;
-        PartitionAdr = buffer[i] | buffer[i+1]<<8 | buffer[i+2]<<16 | buffer[i+3]<<24;
+        PartitionAdr = buffer[i] | buffer[i+1]<<8 | buffer[i+2]<<16 | buffer[i+3]<<24; // l'adresse de debut de partition
         FatAdr = (int)PartitionAdr/tailleSecteur + secteursReserves;
-        racineAdr = (secteursReserves+NombreTablesFAT*tailleFat)*tailleSecteur;
+        racineAdr = (secteursReserves+NombreTablesFAT*tailleFat)*tailleSecteur; // adresse racine
         fclose(dp);
     }
     printf("----------------- Propriétés de la Partition -----------------------\n");
@@ -233,8 +232,8 @@ void Rechercher_Fichiers_Partition(FILE *partition){
      int clust = cluster_actuel;
      while (cluster_actuel!=-1)
      {
-         Parcourir_Cluster(cluster_actuel,partition);
-         clust = cluster_suivant(partition,cluster_actuel);
+         Parcourir_Cluster(cluster_actuel,partition); // parcourir le cluster 
+         clust = cluster_suivant(partition,cluster_actuel); // trouver le cluster suivant a parcourir
          cluster_actuel=clust;
      }
      
@@ -246,16 +245,16 @@ void Afficher_fichiers_Reps(char* buffer){
     int i,j;
     unsigned char* buff;
     for(i=0;i<16;i++){
-        buff = malloc(sizeof(char)*32);
+        buff = malloc(sizeof(char)*32); // allouer la taille d'une enree
         for(j=0;j<32;j++){
-           buff[j] = buffer[j+i*32];
+           buff[j] = buffer[j+i*32]; // copier l'entree dans un beffer de 32 Octets
         }
-        if(est_vide(buff)==-1){
+        if(est_vide(buff)==-1){ // tester si le buffer est vide pour arreter parcour du cluster et secteur
           stop=-1;
           break;
         }
         else{
-          get_Fichier_Infos(buff);
+          get_Fichier_Infos(buff); // recuperer les information d'un fichier
         }
         buff=NULL;
     }
@@ -266,27 +265,28 @@ void Afficher_fichiers_Reps(char* buffer){
 void get_Fichier_Infos(char* buffer){
     tfichier *f;
     f=Allouer_F();
-    f->taille = buffer[28] | buffer[29]<<8 | buffer[30]<<16 | buffer[31]<<24;
-    f->premier_cluster = buffer[26] | buffer[27] <<8 | buffer[20]<<16 | buffer[21]<<24;
-    f->type = buffer[11];
+    f->taille = buffer[28] | buffer[29]<<8 | buffer[30]<<16 | buffer[31]<<24; //recuperer la taille du fichier
+    f->premier_cluster = buffer[26] | buffer[27] <<8 | buffer[20]<<16 | buffer[21]<<24; // recuperer le premier cluster
+    f->type = buffer[11]; // recuperer le type de fichier ( fichier ou répertoire)
     f->nom_fichier[11] = 0x00;
     int i = 10;
     while(buffer[i] == 0x20) f->nom_fichier[i--] = 0x00;
-    while(i >= 0) {f->nom_fichier[i] = buffer[i]; i--;}
-    if((strcmp(f->nom_fichier,"")!=0) && (f->taille>=0) && (f->premier_cluster>=0)){
+    while(i >= 0) {f->nom_fichier[i] = buffer[i]; i--;} // copier le nom du fichier
+    if((strcmp(f->nom_fichier,"")!=0) && (f->taille>=0) && (f->premier_cluster>=0)){ // afficher les fichier non defectuex
     printf("----------------- Propriétés du Fichier --------------------------\n");
     printf("Le Nom du Fichier                  :%s\n",f->nom_fichier);
     printf("La Taille du Fichier               :%d\n",f->taille);
     printf("Le Numero du Premier cluster       :%d\n",f->premier_cluster);
     printf("Répetoire Parent                   :%s\n",cluster_parent);
     char *type;
-    if(f->type==0x10){
+    if(f->type==0x10){ // tester si le fichier est un répertoire
        type = "Répértoire";
-       if(existe(f->premier_cluster)==0){
-            (Clusters[num_cluster+1]).cluster = f->premier_cluster;
-            (Clusters[num_cluster+1]).rep_cour = f->nom_fichier;
-            (Clusters[num_cluster+1]).rep_parent = cluster_courant;
+       if(existe(f->premier_cluster)==0){ // tester si le repertoire est déja sauvegarder pour ne pas dupliquer
+            (Clusters[num_cluster+1]).cluster = f->premier_cluster; // sauvegarde du repertiore pour le parcourir ultirieurement
+            (Clusters[num_cluster+1]).rep_cour = f->nom_fichier; // garder son nom
+            (Clusters[num_cluster+1]).rep_parent = cluster_courant; // garder le nom son repertoire parent
             num_cluster+=1; 
+
        }
     }
     else{
@@ -300,11 +300,11 @@ void get_Fichier_Infos(char* buffer){
 /****************** Allouer une structure de type tfichier    ***************************************/
 
 struct tfichier *Allouer_F ()
-{ return ((struct tfichier *) malloc( sizeof(struct tfichier))); }
+{ return ((struct tfichier *) malloc( sizeof(struct tfichier))); } //allouer une structure de type fichier
 
 /****************** Afficher le tableau des clusters disponible a lecture ***************************/
 
-void Afficher_Clusters(){
+void Afficher_Clusters(){ //fonctions pour faire des test sur la table des repertoire a parcourir
     for(int i=0;i<=num_cluster;i++){
         char *chaine;
         chaine = (Clusters[i]).rep_parent ;
@@ -318,18 +318,18 @@ void Parcourir_Cluster(int cluster,FILE *partition){
     unsigned int address = racineAdr + (cluster - clusterRacine) * secteurParCluster * tailleSecteur;
     unsigned char* buffer;
     stop=1;
-    for(int i=0;i<8 && stop!=-1;i++){
+    for(int i=0;i<secteurParCluster && stop!=-1;i++){ // parcourir les secteurs de cluster
         buffer = NULL;
-        buffer = Lire_secteur(partition,address+i*512);
-        Afficher_fichiers_Reps(buffer);
+        buffer = Lire_secteur(partition,address+i*tailleSecteur); // lire le secteur
+        Afficher_fichiers_Reps(buffer); //parcourir le secteur pour recuperer les fichiers
     }
 }
 
-/********************************* vérifier si le secteur est vide *********************************/
+/********************************* vérifier si l'entree' est vide *********************************/
 
-int est_vide(char *buffer){
+int est_vide(char *buffer){ 
     for(int j=0;j<32;j++){
-        if(buffer[j]!=0x00){
+        if(buffer[j]!=0x00){ // tester si tout le octets de l'entree de fichier son des zeros donc entree vide
             return 1;
         }
     }
@@ -340,13 +340,13 @@ int est_vide(char *buffer){
 
 int cluster_suivant(FILE *partition,int cls){
     int clus = -1 ;
-    clus = cluster_suivant_FAT(partition,cls);
-    if(clus==-1){
-        clus = (Clusters[indice_courant_cluster+1]).cluster;
+    clus = cluster_suivant_FAT(partition,cls); // chercher dans la table des FATs pour trouver le cluster prochain
+    if(clus==-1){ //si le cluster est le dernier dans la chaine ou bien bad cluster , on change vers un autre repertoire
+        clus = (Clusters[indice_courant_cluster+1]).cluster; // chercher un cluster dans la table des repertoire
         if(clus!=-1){
             char *chaine,*chaine2;
-            chaine = (Clusters[indice_courant_cluster+1]).rep_parent ;
-            chaine2 = (Clusters[indice_courant_cluster+1]).rep_cour;
+            chaine = (Clusters[indice_courant_cluster+1]).rep_parent ; //actualiser le repertoire parent
+            chaine2 = (Clusters[indice_courant_cluster+1]).rep_cour; //actualiser le repertoire courant
             cluster_parent = chaine;
             cluster_courant = chaine2;
         }
@@ -374,18 +374,18 @@ int cluster_suivant_FAT(FILE *partition,int cluster_act){
             }
             else {
                 unsigned int a = buffer[0] | buffer[1]<<8 | buffer[2]<<16 | buffer[3]<<24;
-                if ( (a >= 0x0FFFFFF8) || (a == 0x00000000) || (a == 0x0FFFFFF7))
+                if ( (a >= 0x0FFFFFF8) || (a == 0x00000000) || (a == 0x0FFFFFF7)) //tester si le cluster est le dernier dans la chaine ou bien BAD cluster
                 {
                     return -1;
                 }
                 else
-                {
-                   char little_india[4];
+                { // si ce n'est pas le dernier dans la chaine chercher le cluster suivant
+                   char little_india[4]; //les donnes son en little india ,
                    for(int i=0;i<4;i++){
-                       little_india[i] = buffer[3-i];
+                       little_india[i] = buffer[3-i]; //  donc on change vers l'hexadecimal
                    }
                    unsigned int b = little_india[0] | little_india[1]<<8 | little_india[2]<<16 | little_india[3]<<24;
-                   return (int)b;
+                   return (int)b; //convertir l'hexa vers un entier
                 }    
             }
         }
@@ -395,12 +395,11 @@ int cluster_suivant_FAT(FILE *partition,int cluster_act){
 
 /****************************** Tester si le cluster existe déja dans le tableau  ******************/
 
-int existe(int cluster){
-    for(int i=0;i<=num_cluster;i++){
-        if((Clusters[i]).cluster==cluster){
+int existe(int cluster){ // tester si un cluster existe dans le tableau pour ne pas dupliquer
+    for(int i=0;i<=num_cluster;i++){ //parcourir le tableau
+        if((Clusters[i]).cluster==cluster){ // tester s'il existe
             return 1;
             printf("le cluster :%d\n",cluster);
-            Afficher_Clusters();
         }
     }
     return 0;
